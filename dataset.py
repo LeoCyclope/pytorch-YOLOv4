@@ -255,10 +255,10 @@ class Yolo_dataset(Dataset):
         truth = {}
         f = open(lable_path, 'r', encoding='utf-8')
         for line in f.readlines():
-            data = line.split(" ")
+            data = line.strip().split(" ")
             truth[data[0]] = []
             for i in data[1:]:
-                truth[data[0]].append([int(float(j)) for j in i.split(',')])
+                truth[data[0]].append([int(j) for j in i.split(',')])
 
         self.truth = truth
         self.imgs = list(self.truth.keys())
@@ -272,6 +272,8 @@ class Yolo_dataset(Dataset):
         img_path = self.imgs[index]
         bboxes = np.array(self.truth.get(img_path), dtype=np.float)
         img_path = os.path.join(self.cfg.dataset_dir, img_path)
+        #img_path = '/raid-dgx1/Hasnat/pytorch-YOLOv4/voc_images/' + img_path
+        #print(img_path)
         use_mixup = self.cfg.mixup
         if random.randint(0, 1):
             use_mixup = 0
@@ -292,7 +294,8 @@ class Yolo_dataset(Dataset):
             if i != 0:
                 img_path = random.choice(list(self.truth.keys()))
                 bboxes = np.array(self.truth.get(img_path), dtype=np.float)
-                img_path = os.path.join(self.cfg.dataset_dir, img_path)
+                img_path = self.cfg.dataset_dir + '/' + img_path
+            #print(img_path)
             img = cv2.imread(img_path)
             img = cv2.cvtColor(img, cv2.COLOR_BGR2RGB)
             if img is None:

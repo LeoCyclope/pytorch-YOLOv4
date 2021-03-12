@@ -135,7 +135,7 @@ class Yolo_loss(nn.Module):
         image_size = 608
         self.n_classes = n_classes
         self.n_anchors = n_anchors
-
+        
         self.anchors = [[12, 16], [19, 36], [40, 28], [36, 75], [76, 55], [72, 146], [142, 110], [192, 243], [459, 401]]
         self.anch_masks = [[0, 1, 2], [3, 4, 5], [6, 7, 8]]
         self.ignore_thre = 0.5
@@ -234,11 +234,14 @@ class Yolo_loss(nn.Module):
 
     def forward(self, xin, labels=None):
         loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = 0, 0, 0, 0, 0, 0
+        print(len(xin))
         for output_id, output in enumerate(xin):
+            print(output.shape)
             batchsize = output.shape[0]
             fsize = output.shape[2]
             n_ch = 5 + self.n_classes
 
+            print(batchsize, self.n_anchors, n_ch, fsize, fsize)
             output = output.view(batchsize, self.n_anchors, n_ch, fsize, fsize)
             output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
 
@@ -289,15 +292,25 @@ def collate(batch):
 
 
 def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=20, img_scale=0.5):
+    #np.savez('config.npz', config=config, allow_pickle=False)
+    #import pickle
+    #with open('config.pkl', 'wb') as f:
+    #    pickle.dump(config, f, protocol=pickle.HIGHEST_PROTOCOL)
+        
+    verbose=True
+    
     train_dataset = Yolo_dataset(config.train_label, config, train=True)
     val_dataset = Yolo_dataset(config.val_label, config, train=False)
 
     n_train = len(train_dataset)
     n_val = len(val_dataset)
-
+    
+    if verbose:
+        print('Loading training data')
     train_loader = DataLoader(train_dataset, batch_size=config.batch // config.subdivisions, shuffle=True,
                               num_workers=8, pin_memory=True, drop_last=True, collate_fn=collate)
-
+    if verbose:
+        print('Loading valdidation data')
     val_loader = DataLoader(val_dataset, batch_size=config.batch // config.subdivisions, shuffle=True, num_workers=8,
                             pin_memory=True, drop_last=True, collate_fn=val_collate)
 
@@ -352,32 +365,39 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
             momentum=config.momentum,
             weight_decay=config.decay,
         )
+        
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
 
-    criterion = Yolo_loss(device=device, batch=config.batch // config.subdivisions, n_classes=config.classes)
+    criterion = Yolo_loss(device=device, batch=config.batch // config.subdivisions, n_anchors=5, n_classes=config.classes)
     # scheduler = ReduceLROnPlateau(optimizer, mode='max', verbose=True, patience=6, min_lr=1e-7)
     # scheduler = CosineAnnealingWarmRestarts(optimizer, 0.001, 1e-6, 20)
 
     save_prefix = 'Yolov4_epoch'
     saved_models = deque()
     model.train()
+        
     for epoch in range(epochs):
-        # model.train()
+        #model.train()
         epoch_loss = 0
         epoch_step = 0
-
+        
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img', ncols=50) as pbar:
             for i, batch in enumerate(train_loader):
+                print('inside train_loader')
+                print(global_step, epoch_step)
+                
                 global_step += 1
                 epoch_step += 1
                 images = batch[0]
                 bboxes = batch[1]
-
+                print(len(images), len(bboxes))   
                 images = images.to(device=device, dtype=torch.float32)
                 bboxes = bboxes.to(device=device)
 
                 bboxes_pred = model(images)
+                print(len(bboxes_pred), len(bboxes), bboxes_pred[0].shape, bboxes[0].shape)
                 loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = criterion(bboxes_pred, bboxes)
+                print('loss computed')
                 # loss = loss / config.subdivisions
                 loss.backward()
 
@@ -388,7 +408,11 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                     scheduler.step()
                     model.zero_grad()
 
+                log_step = 1
                 if global_step % (log_step * config.subdivisions) == 0:
+                    if verbose:
+                        print('train/Loss', loss.item())
+                        
                     writer.add_scalar('train/Loss', loss.item(), global_step)
                     writer.add_scalar('train/loss_xy', loss_xy.item(), global_step)
                     writer.add_scalar('train/loss_wh', loss_wh.item(), global_step)
