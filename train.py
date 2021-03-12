@@ -234,14 +234,11 @@ class Yolo_loss(nn.Module):
 
     def forward(self, xin, labels=None):
         loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = 0, 0, 0, 0, 0, 0
-        print(len(xin))
         for output_id, output in enumerate(xin):
-            print(output.shape)
             batchsize = output.shape[0]
             fsize = output.shape[2]
             n_ch = 5 + self.n_classes
 
-            print(batchsize, self.n_anchors, n_ch, fsize, fsize)
             output = output.view(batchsize, self.n_anchors, n_ch, fsize, fsize)
             output = output.permute(0, 1, 3, 4, 2)  # .contiguous()
 
@@ -368,7 +365,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
         
     scheduler = optim.lr_scheduler.LambdaLR(optimizer, burnin_schedule)
 
-    criterion = Yolo_loss(device=device, batch=config.batch // config.subdivisions, n_anchors=5, n_classes=config.classes)
+    criterion = Yolo_loss(device=device, batch=config.batch // config.subdivisions, n_anchors=3, n_classes=config.classes)
     # scheduler = ReduceLROnPlateau(optimizer, mode='max', verbose=True, patience=6, min_lr=1e-7)
     # scheduler = CosineAnnealingWarmRestarts(optimizer, 0.001, 1e-6, 20)
 
@@ -391,9 +388,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 bboxes = bboxes.to(device=device)
 
                 bboxes_pred = model(images)
-                print(len(bboxes_pred), len(bboxes), bboxes_pred[0].shape, bboxes[0].shape)
                 loss, loss_xy, loss_wh, loss_obj, loss_cls, loss_l2 = criterion(bboxes_pred, bboxes)
-                print('loss computed')
                 # loss = loss / config.subdivisions
                 loss.backward()
 
@@ -655,3 +650,6 @@ if __name__ == "__main__":
             sys.exit(0)
         except SystemExit:
             os._exit(0)
+
+            
+# python train.py -g 3 -dir /raid-dgx1/Hasnat/pytorch-YOLOv4/voc_images -classes 20            
