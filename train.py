@@ -382,15 +382,11 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
         epoch_step = 0
         
         with tqdm(total=n_train, desc=f'Epoch {epoch + 1}/{epochs}', unit='img', ncols=50) as pbar:
-            for i, batch in enumerate(train_loader):
-                print('inside train_loader')
-                print(global_step, epoch_step)
-                
+            for i, batch in enumerate(train_loader):                
                 global_step += 1
                 epoch_step += 1
                 images = batch[0]
                 bboxes = batch[1]
-                print(len(images), len(bboxes))   
                 images = images.to(device=device, dtype=torch.float32)
                 bboxes = bboxes.to(device=device)
 
@@ -634,11 +630,15 @@ if __name__ == "__main__":
     device = torch.device('cuda' if torch.cuda.is_available() else 'cpu')
     logging.info(f'Using device {device}')
 
+    '''
+    Cfg.use_darknet_cfg = False
     if cfg.use_darknet_cfg:
         model = Darknet(cfg.cfgfile)
     else:
         model = Yolov4(cfg.pretrained, n_classes=cfg.classes)
-
+    '''
+    model = Yolov4(cfg.pretrained, n_classes=cfg.classes)
+    
     if torch.cuda.device_count() > 1:
         model = torch.nn.DataParallel(model)
     model.to(device=device)
