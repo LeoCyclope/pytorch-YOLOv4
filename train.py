@@ -293,7 +293,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
     #import pickle
     #with open('config.pkl', 'wb') as f:
     #    pickle.dump(config, f, protocol=pickle.HIGHEST_PROTOCOL)
-        
+    
     verbose=True
     
     train_dataset = Yolo_dataset(config.train_label, config, train=True)
@@ -335,7 +335,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
         Train label path:{config.train_label}
         Pretrained:
     ''')
-
+    
     # learning rate setup
     def burnin_schedule(i):
         if i < config.burn_in:
@@ -434,6 +434,8 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                 eval_model = Yolov4(cfg.pretrained, n_classes=cfg.classes, inference=True)
             # eval_model = Yolov4(yolov4conv137weight=None, n_classes=config.classes, inference=True)
             '''
+            
+            '''
             # Update : update the eval-model
             eval_model = Yolov4(cfg.pretrained, n_classes=cfg.classes, inference=True)
             
@@ -444,7 +446,8 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
             eval_model.to(device)
             evaluator = evaluate(eval_model, val_loader, config, device)
             del eval_model
-
+            
+            
             stats = evaluator.coco_eval['bbox'].stats
             writer.add_scalar('train/AP', stats[0], global_step)
             writer.add_scalar('train/AP50', stats[1], global_step)
@@ -458,7 +461,7 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
             writer.add_scalar('train/AR_small', stats[9], global_step)
             writer.add_scalar('train/AR_medium', stats[10], global_step)
             writer.add_scalar('train/AR_large', stats[11], global_step)
-
+            '''    
             if save_cp:
                 try:
                     # os.mkdir(config.checkpoints)
@@ -477,6 +480,19 @@ def train(model, device, config, epochs=5, batch_size=1, save_cp=True, log_step=
                     except:
                         logging.info(f'failed to remove {model_to_remove}')
 
+
+    # Update : evaluating takes time so we do it at the end
+    eval_model = Yolov4(cfg.pretrained, n_classes=cfg.classes, inference=True)
+
+    if torch.cuda.device_count() > 1:
+        eval_model.load_state_dict(model.module.state_dict())
+    else:
+        eval_model.load_state_dict(model.state_dict())
+    eval_model.to(device)
+    evaluator = evaluate(eval_model, val_loader, config, device)
+    del eval_model
+
+    
     writer.close()
 
 
@@ -487,10 +503,11 @@ def evaluate(model, data_loader, cfg, device, logger=None, **kwargs):
     # cpu_device = torch.device("cpu")
     model.eval()
     # header = 'Test:'
-
+    print('Converting to coco api ...')
     coco = convert_to_coco_api(data_loader.dataset, bbox_fmt='coco')
     coco_evaluator = CocoEvaluator(coco, iou_types = ["bbox"], bbox_fmt='coco')
 
+    print('Iterating over the images ...')
     for images, targets in data_loader:
         model_input = [[cv2.resize(img, (cfg.w, cfg.h))] for img in images]
         model_input = np.concatenate(model_input, axis=0)
@@ -510,6 +527,7 @@ def evaluate(model, data_loader, cfg, device, logger=None, **kwargs):
         # outputs = outputs.cpu().detach().numpy()
         res = {}
         # for img, target, output in zip(images, targets, outputs):
+        #print('Loading images ...')
         for img, target, boxes, confs in zip(images, targets, outputs[0], outputs[1]):
             img_height, img_width = img.shape[:2]
             # boxes = output[...,:4].copy()  # output boxes in yolo format

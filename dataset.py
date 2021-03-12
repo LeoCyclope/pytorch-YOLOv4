@@ -270,10 +270,9 @@ class Yolo_dataset(Dataset):
         if not self.train:
             return self._get_val_item(index)
         img_path = self.imgs[index]
-        bboxes = np.array(self.truth.get(img_path), dtype=np.float)
+        bboxes = np.array(self.truth.get(img_path), dtype=np.float)       
         img_path = os.path.join(self.cfg.dataset_dir, img_path)
-        #img_path = '/raid-dgx1/Hasnat/pytorch-YOLOv4/voc_images/' + img_path
-        #print(img_path)
+
         use_mixup = self.cfg.mixup
         if random.randint(0, 1):
             use_mixup = 0
@@ -404,6 +403,7 @@ class Yolo_dataset(Dataset):
         # boxes to coco format
         boxes = bboxes_with_cls_id[...,:4]
         boxes[..., 2:] = boxes[..., 2:] - boxes[..., :2]  # box width, box height
+
         target['boxes'] = torch.as_tensor(boxes, dtype=torch.float32)
         target['labels'] = torch.as_tensor(bboxes_with_cls_id[...,-1].flatten(), dtype=torch.int64)
         target['image_id'] = torch.tensor([get_image_id(img_path)])
@@ -411,7 +411,7 @@ class Yolo_dataset(Dataset):
         target['iscrowd'] = torch.zeros((num_objs,), dtype=torch.int64)
         return img, target
 
-
+import hashlib
 def get_image_id(filename:str) -> int:
     """
     Convert a string to a integer.
@@ -426,11 +426,14 @@ def get_image_id(filename:str) -> int:
     >>> no = f"{int(no):04d}"
     >>> return int(lv+no)
     """
+    '''
     raise NotImplementedError("Create your own 'get_image_id' function")
     lv, no = os.path.splitext(os.path.basename(filename))[0].split("_")
     lv = lv.replace("level", "")
     no = f"{int(no):04d}"
     return int(lv+no)
+    '''
+    return int(hashlib.sha1(filename.encode("utf-8")).hexdigest(), 16) % (10 ** 10)
 
 
 if __name__ == "__main__":
